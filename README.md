@@ -58,7 +58,7 @@
 
 ```bash
 # Клонируем репозиторий
-git clone https://github.com/YOUR_USERNAME/HW_10_prod.git
+git clone https://github.com/mrPDA/HW_10_prod.git
 cd HW_10_prod
 
 # Настраиваем учетные данные Yandex Cloud
@@ -420,7 +420,7 @@ make clean-cache       # Очистка кэша сборки
 
 ```bash
 # Клонируем и настраиваем
-git clone https://github.com/YOUR_USERNAME/HW_10_prod.git
+git clone https://github.com/mrPDA/HW_10_prod.git
 cd HW_10_prod
 
 # Устанавливаем зависимости
@@ -471,7 +471,7 @@ make test-local
 ## 👨‍💻 Автор
 
 **Студент OTUS MLOps**  
-📧 Связь: [GitHub Issues](https://github.com/YOUR_USERNAME/HW_10_prod/issues)  
+📧 Связь: [GitHub Issues](https://github.com/mrPDA/HW_10_prod/issues)  
 🎓 Курс: OTUS MLOps  
 📅 Дата: Сентябрь 2025  
 

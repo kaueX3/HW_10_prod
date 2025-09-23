@@ -16,7 +16,7 @@
 
 ```bash
 # Клонируем репозиторий
-git clone https://github.com/YOUR_USERNAME/HW_10_prod.git
+git clone https://github.com/mrPDA/HW_10_prod.git
 cd HW_10_prod
 
 # Настраиваем учетные данные Yandex Cloud
@@ -176,8 +176,8 @@ terraform destroy -auto-approve
 ## 🆘 Нужна помощь?
 
 - **📖 Полная документация**: [README.md](README.md)
-- **🐛 Проблемы**: [GitHub Issues](https://github.com/YOUR_USERNAME/HW_10_prod/issues)
-- **💬 Обсуждения**: [GitHub Discussions](https://github.com/YOUR_USERNAME/HW_10_prod/discussions)
+- **🐛 Проблемы**: [GitHub Issues](https://github.com/mrPDA/HW_10_prod/issues)
+- **💬 Обсуждения**: [GitHub Discussions](https://github.com/mrPDA/HW_10_prod/discussions)
 
 ---
 
