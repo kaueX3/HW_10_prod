@@ -1,0 +1,170 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-server
+  namespace: airflow
+  labels:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mlflow
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mlflow
+        app.kubernetes.io/component: server
+    spec:
+      containers:
+      - name: mlflow-server
+        image: python:3.11-slim
+        command:
+        - bash
+        - -c
+        - |
+          pip install mlflow==2.8.1 psycopg2-binary boto3
+          mlflow server \
+            --backend-store-uri postgresql://mlflow:mlflow@mlflow-postgres:5432/mlflow \
+            --default-artifact-root s3://mlflow-artifacts/ \
+            --host 0.0.0.0 \
+            --port 5000
+        ports:
+        - name: http
+          containerPort: 5000
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretRef:
+              name: mlflow-secrets
+              key: s3-access-key
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretRef:
+              name: mlflow-secrets
+              key: s3-secret-key
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: "https://storage.yandexcloud.net"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-postgres
+  namespace: airflow
+  labels:
+    app.kubernetes.io/name: mlflow-postgres
+    app.kubernetes.io/component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mlflow-postgres
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mlflow-postgres
+        app.kubernetes.io/component: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_DB
+          value: "mlflow"
+        - name: POSTGRES_USER
+          value: "mlflow"
+        - name: POSTGRES_PASSWORD
+          value: "mlflow"
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        ports:
+        - name: postgres
+          containerPort: 5432
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+      volumes:
+      - name: postgres-storage
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-server
+  namespace: airflow
+  labels:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+  selector:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/component: server
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-postgres
+  namespace: airflow
+  labels:
+    app.kubernetes.io/name: mlflow-postgres
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  selector:
+    app.kubernetes.io/name: mlflow-postgres
+    app.kubernetes.io/component: database
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mlflow-secrets
+  namespace: airflow
+  labels:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/component: secrets
+type: Opaque
+stringData:
+  s3-access-key: "YOUR_S3_ACCESS_KEY"
+  s3-secret-key: "YOUR_S3_SECRET_KEY"

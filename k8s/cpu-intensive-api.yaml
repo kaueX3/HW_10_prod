@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection-api
+  namespace: fraud-detection
+  labels:
+    app.kubernetes.io/name: fraud-detection
+    app.kubernetes.io/component: api
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fraud-detection
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fraud-detection
+        app.kubernetes.io/component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: fraud-detection-api
+        image: python:3.11-slim
+        command:
+        - bash
+        - -c
+        - |
+          cat > app.py << 'EOF'
+          import http.server
+          import socketserver
+          import hashlib
+          import time
+          import random
+          from urllib.parse import urlparse, parse_qs
+          
+          class CPUIntensiveHandler(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == '/':
+                      self.send_response(200)
+                      self.send_header('Content-type', 'text/html')
+                      self.end_headers()
+                      
+                      html = """
+                      <!DOCTYPE html>
+                      <html>
+                      <head><title>🛡️ CPU-Intensive API for HW_10</title></head>
+                      <body style="font-family: Arial; margin: 40px;">
+                          <h1>🛡️ Fraud Detection API - CPU Intensive Demo</h1>
+                          <p>✅ <strong>Status:</strong> Running and consuming CPU</p>
+                          <p>🎯 <strong>Purpose:</strong> Демонстрация автоскейлинга HW_10</p>
+                          <p>📊 <strong>Current Load:</strong> High CPU usage per request</p>
+                          
+                          <h3>🔗 Test Endpoints:</h3>
+                          <ul>
+                              <li><a href="/cpu">/cpu</a> - CPU intensive task</li>
+                              <li><a href="/health">/health</a> - Health check</li>
+                              <li><a href="/metrics">/metrics</a> - Prometheus metrics</li>
+                          </ul>
+                      </body>
+                      </html>
+                      """
+                      self.wfile.write(html.encode())
+                  
+                  elif self.path.startswith('/cpu'):
+                      # CPU-интенсивная задача
+                      self.simulate_ml_inference()
+                      self.send_response(200)
+                      self.send_header('Content-type', 'application/json')
+                      self.end_headers()
+                      result = '{"fraud_probability": 0.15, "model_version": "demo-v1", "processing_time_ms": 250}'
+                      self.wfile.write(result.encode())
+                  
+                  elif self.path == '/health':
+                      self.send_response(200)
+                      self.send_header('Content-type', 'application/json')
+                      self.end_headers()
+                      self.wfile.write(b'{"status": "healthy", "service": "fraud-detection-api"}')
+                  
+                  elif self.path == '/metrics':
+                      self.send_response(200)
+                      self.send_header('Content-type', 'text/plain')
+                      self.end_headers()
+                      metrics = '''# HELP ml_predictions_total Total ML predictions
+          ml_predictions_total 1234
+          # HELP cpu_usage_percent CPU usage percentage  
+          cpu_usage_percent 85.5'''
+                      self.wfile.write(metrics.encode())
+                  
+                  else:
+                      self.send_response(404)
+                      self.end_headers()
+              
+              def simulate_ml_inference(self):
+                  """Имитация CPU-интенсивной ML модели"""
+                  # Генерируем CPU нагрузку
+                  for _ in range(50000):  # Много вычислений
+                      data = f"fraud_detection_{random.randint(1, 1000000)}"
+                      hash_result = hashlib.sha256(data.encode()).hexdigest()
+                      # Дополнительные вычисления
+                      for i in range(100):
+                          _ = hash_result[:i] * 2
+          
+          if __name__ == '__main__':
+              PORT = 8000
+              with socketserver.TCPServer(("", PORT), CPUIntensiveHandler) as httpd:
+                  print(f"🚀 CPU-Intensive API запущен на порту {PORT}")
+                  httpd.serve_forever()
+          EOF
+          
+          python app.py
+        ports:
+        - name: http
+          containerPort: 8000
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5

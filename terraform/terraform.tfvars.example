@@ -1,0 +1,22 @@
+# 🔧 Yandex Cloud Configuration Example
+# Скопируйте этот файл в terraform.tfvars и заполните своими значениями
+
+# 🔑 Yandex Cloud Authentication
+yc_token     = "your-yandex-cloud-iam-token"  # Получить: yc iam create-token
+yc_cloud_id  = "your-cloud-id"                # Получить: yc config get cloud-id
+yc_folder_id = "your-folder-id"               # Получить: yc config get folder-id
+
+# 🌍 Deployment Settings
+zone = "ru-central1-a"                        # Зона развертывания
+
+# 📝 Примеры получения значений:
+# yc_token:     yc iam create-token
+# yc_cloud_id:  yc config get cloud-id
+# yc_folder_id: yc config get folder-id
+
+# ⚠️ ВАЖНО: 
+# - Не добавляйте этот файл в git после заполнения!
+# - Используйте переменные окружения для CI/CD:
+#   export TF_VAR_yc_token=$(yc iam create-token)
+#   export TF_VAR_yc_cloud_id="your-cloud-id"
+#   export TF_VAR_yc_folder_id="your-folder-id"

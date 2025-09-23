@@ -1,0 +1,256 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: config
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@fraud-detection.local'
+      smtp_auth_username: 'your-email@gmail.com'
+      smtp_auth_password: 'your-app-password'
+      slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    
+    # ===== МАРШРУТИЗАЦИЯ АЛЕРТОВ =====
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'default'
+      routes:
+      
+      # Критические алерты - немедленно
+      - match:
+          severity: critical
+        receiver: 'critical-alerts'
+        group_wait: 0s
+        repeat_interval: 5m
+      
+      # Алерты по производительности
+      - match:
+          alert_type: performance
+        receiver: 'performance-alerts'
+        repeat_interval: 15m
+      
+      # Инфраструктурные алерты
+      - match:
+          alert_type: infrastructure
+        receiver: 'infrastructure-alerts'
+        repeat_interval: 30m
+    
+    # ===== ПОЛУЧАТЕЛИ УВЕДОМЛЕНИЙ =====
+    receivers:
+    
+    # По умолчанию
+    - name: 'default'
+      email_configs:
+      - to: 'admin@fraud-detection.local'
+        subject: '⚠️ Fraud Detection Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🚨 ALERT: {{ .GroupLabels.alertname }}
+          
+          📊 Details:
+          {{ range .Alerts }}
+          - {{ .Annotations.summary }}
+          - Description: {{ .Annotations.description }}
+          - Severity: {{ .Labels.severity }}
+          - Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+          
+          🔗 Dashboard: http://grafana.monitoring.svc.cluster.local:3000
+          🔗 Prometheus: http://prometheus.monitoring.svc.cluster.local:9090
+    
+    # Критические алерты - системному администратору
+    - name: 'critical-alerts'
+      email_configs:
+      - to: 'sysadmin@fraud-detection.local, on-call@fraud-detection.local'
+        subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }} - IMMEDIATE ACTION REQUIRED'
+        body: |
+          🚨 КРИТИЧЕСКИЙ АЛЕРТ 🚨
+          
+          ⚡ Alertname: {{ .GroupLabels.alertname }}
+          🏷️ Service: {{ .GroupLabels.service }}
+          📍 Cluster: {{ .GroupLabels.cluster }}
+          
+          📊 ДЕТАЛИ:
+          {{ range .Alerts }}
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          🎯 Summary: {{ .Annotations.summary }}
+          📝 Description: {{ .Annotations.description }}
+          🔴 Severity: {{ .Labels.severity }}
+          ⏰ Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.pod }}📦 Pod: {{ .Labels.pod }}{{ end }}
+          {{ if .Labels.instance }}🖥️ Instance: {{ .Labels.instance }}{{ end }}
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          {{ end }}
+          
+          🔧 ТРЕБУЕМЫЕ ДЕЙСТВИЯ:
+          1. Немедленно проверить статус кластера
+          2. Проанализировать метрики в Grafana
+          3. Проверить логи приложений
+          4. При необходимости - эскалировать до DevOps команды
+          
+          🔗 ПОЛЕЗНЫЕ ССЫЛКИ:
+          • Grafana Dashboard: http://grafana.monitoring.svc.cluster.local:3000/d/fraud-detection
+          • Prometheus Alerts: http://prometheus.monitoring.svc.cluster.local:9090/alerts
+          • Kubernetes Dashboard: kubectl get pods -n fraud-detection
+          
+          ⚠️ Этот алерт требует НЕМЕДЛЕННОГО внимания!
+      
+      slack_configs:
+      - channel: '#alerts-critical'
+        title: '🚨 CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+        text: |
+          🚨 **КРИТИЧЕСКИЙ АЛЕРТ**
+          
+          **Service:** {{ .GroupLabels.service }}
+          **Alert:** {{ .GroupLabels.alertname }}
+          **Severity:** {{ .GroupLabels.severity }}
+          
+          {{ range .Alerts }}
+          **Summary:** {{ .Annotations.summary }}
+          **Started:** {{ .StartsAt.Format "15:04:05" }}
+          {{ end }}
+          
+          🔗 <http://grafana.monitoring.svc.cluster.local:3000|Grafana Dashboard>
+        send_resolved: true
+    
+    # Алерты по производительности
+    - name: 'performance-alerts'
+      email_configs:
+      - to: 'performance-team@fraud-detection.local'
+        subject: '📈 Performance Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          📈 PERFORMANCE ALERT
+          
+          🎯 Alert: {{ .GroupLabels.alertname }}
+          🏷️ Service: {{ .GroupLabels.service }}
+          
+          {{ range .Alerts }}
+          📊 Summary: {{ .Annotations.summary }}
+          📝 Details: {{ .Annotations.description }}
+          ⏰ Duration: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+          
+          🔧 Recommended Actions:
+          • Check resource utilization
+          • Review application metrics
+          • Consider scaling if needed
+          
+          🔗 Performance Dashboard: http://grafana.monitoring.svc.cluster.local:3000/d/performance
+      
+      slack_configs:
+      - channel: '#performance'
+        title: '📈 Performance Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          📈 **Performance issue detected**
+          
+          {{ range .Alerts }}
+          **Summary:** {{ .Annotations.summary }}
+          **Service:** {{ .Labels.service }}
+          {{ end }}
+        send_resolved: true
+    
+    # Инфраструктурные алерты
+    - name: 'infrastructure-alerts'
+      email_configs:
+      - to: 'devops@fraud-detection.local'
+        subject: '🏗️ Infrastructure Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          🏗️ INFRASTRUCTURE ALERT
+          
+          🎯 Alert: {{ .GroupLabels.alertname }}
+          
+          {{ range .Alerts }}
+          📊 Summary: {{ .Annotations.summary }}
+          📝 Details: {{ .Annotations.description }}
+          ⏰ Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+          
+          🔧 Infrastructure Dashboard: http://grafana.monitoring.svc.cluster.local:3000/d/infrastructure
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alertmanager
+        app.kubernetes.io/component: server
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:v0.25.0
+        args:
+        - '--config.file=/etc/alertmanager/alertmanager.yml'
+        - '--storage.path=/alertmanager'
+        - '--web.external-url=http://alertmanager.monitoring.svc.cluster.local:9093'
+        ports:
+        - name: http
+          containerPort: 9093
+        volumeMounts:
+        - name: alertmanager-config
+          mountPath: /etc/alertmanager
+        - name: alertmanager-storage
+          mountPath: /alertmanager
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9093
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9093
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: alertmanager-config
+        configMap:
+          name: alertmanager-config
+      - name: alertmanager-storage
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 9093
+    targetPort: 9093
+  selector:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: server

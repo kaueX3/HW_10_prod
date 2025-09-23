@@ -1,0 +1,94 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fraud-detection-hpa
+  namespace: fraud-detection
+  labels:
+    app.kubernetes.io/name: fraud-detection
+    app.kubernetes.io/component: autoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fraud-detection-api
+  
+  # ===== МАСШТАБИРОВАНИЕ ОТ 4 ДО 6 ЭКЗЕМПЛЯРОВ =====
+  minReplicas: 4
+  maxReplicas: 6
+  
+  # ===== ПОВЕДЕНИЕ МАСШТАБИРОВАНИЯ =====
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60    # Стабилизация перед scale-up
+      policies:
+      - type: Percent
+        value: 50                       # Максимум 50% увеличение за раз
+        periodSeconds: 60
+      - type: Pods  
+        value: 1                        # Максимум 1 под за раз
+        periodSeconds: 60
+      selectPolicy: Min                 # Выбираем минимальное значение
+    
+    scaleDown:
+      stabilizationWindowSeconds: 180   # Больше времени для scale-down
+      policies:
+      - type: Percent
+        value: 25                       # Максимум 25% уменьшение за раз
+        periodSeconds: 120
+      - type: Pods
+        value: 1                        # Максимум 1 под за раз
+        periodSeconds: 120
+      selectPolicy: Min
+  
+  # ===== МЕТРИКИ ДЛЯ АВТОСКЕЙЛИНГА =====
+  metrics:
+  
+  # CPU утилизация (основная метрика)
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70          # Scale-up при >70% CPU
+  
+  # Память (дополнительная метрика)
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80          # Scale-up при >80% памяти
+  
+  # Кастомная метрика - RPS (requests per second)
+  - type: Pods
+    pods:
+      metric:
+        name: fraud_detection_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "50"              # Scale-up при >50 RPS на под
+  
+  # Кастомная метрика - Latency
+  - type: Pods
+    pods:
+      metric:
+        name: fraud_detection_response_time_p95
+      target:
+        type: AverageValue
+        averageValue: "500m"            # Scale-up при >500ms p95 latency
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fraud-detection-pdb
+  namespace: fraud-detection
+  labels:
+    app.kubernetes.io/name: fraud-detection
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: 3                       # Минимум 3 пода всегда доступно
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fraud-detection
+      app.kubernetes.io/component: api

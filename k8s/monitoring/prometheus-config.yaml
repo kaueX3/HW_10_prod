@@ -1,0 +1,331 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'fraud-detection-cluster'
+        environment: 'production'
+    
+    # ===== ALERTING RULES =====
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+    
+    # ===== ALERTMANAGER CONFIGURATION =====
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+    
+    # ===== SCRAPE CONFIGURATIONS =====
+    scrape_configs:
+    
+    # Prometheus itself
+    - job_name: 'prometheus'
+      static_configs:
+        - targets: ['localhost:9090']
+    
+    # Kubernetes API Server
+    - job_name: 'kubernetes-apiservers'
+      kubernetes_sd_configs:
+      - role: endpoints
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+    
+    # Kubernetes Nodes
+    - job_name: 'kubernetes-nodes'
+      kubernetes_sd_configs:
+      - role: node
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+    
+    # cAdvisor для контейнер метрик
+    - job_name: 'kubernetes-cadvisor'
+      kubernetes_sd_configs:
+      - role: node
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+    
+    # Kubernetes Pods
+    - job_name: 'kubernetes-pods'
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+    
+    # Fraud Detection API - основной target
+    - job_name: 'fraud-detection-api'
+      kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names:
+          - fraud-detection
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name]
+        action: keep
+        regex: fraud-detection-service
+      - source_labels: [__meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: metrics
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_service_name]
+        target_label: kubernetes_service_name
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: kubernetes_pod_name
+    
+    # MLflow Server
+    - job_name: 'mlflow-server'
+      static_configs:
+        - targets: ['mlflow-server.airflow.svc.cluster.local:5000']
+      metrics_path: '/metrics'
+      scrape_interval: 30s
+    
+    # Airflow
+    - job_name: 'airflow'
+      static_configs:
+        - targets: ['airflow-webserver.airflow.svc.cluster.local:8080']
+      metrics_path: '/admin/metrics'
+      scrape_interval: 30s
+    
+    # Node Exporter (если установлен)
+    - job_name: 'node-exporter'
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        regex: 'node-exporter'
+        action: keep
+    
+    # Kafka (если используется)
+    - job_name: 'kafka'
+      static_configs:
+        - targets: ['kafka:9308']  # JMX exporter port
+      scrape_interval: 30s
+
+  # ===== ALERTING RULES =====
+  alert_rules.yml: |
+    groups:
+    - name: fraud_detection_alerts
+      rules:
+      
+      # ===== HIGH LOAD ALERT (основной алерт) =====
+      - alert: FraudDetectionHighLoad
+        expr: |
+          (
+            rate(container_cpu_usage_seconds_total{namespace="fraud-detection", pod=~"fraud-detection-api-.*"}[5m]) * 100 > 80
+          ) and (
+            count(up{job="fraud-detection-api"} == 1) >= 6
+          )
+        for: 5m
+        labels:
+          severity: critical
+          service: fraud-detection
+          alert_type: performance
+        annotations:
+          summary: "🚨 КРИТИЧЕСКАЯ НАГРУЗКА: 6 экземпляров API с нагрузкой >80%"
+          description: |
+            🔥 ВНИМАНИЕ! Fraud Detection API работает на пределе возможностей:
+            
+            📊 Статус: {{ $value }}% CPU load на {{ $labels.pod }}
+            ⚖️ Экземпляров: 6 (максимум)
+            ⏱️ Длительность: {{ .ForString }}
+            🕒 Время: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+            
+            🎯 НЕОБХОДИМЫЕ ДЕЙСТВИЯ:
+            • Немедленно проверить причину высокой нагрузки
+            • Рассмотреть увеличение лимитов ресурсов
+            • Проанализировать входящий трафик
+            • Подготовить план масштабирования
+            
+            📈 Troubleshooting: kubectl top pods -n fraud-detection
+      
+      # ===== SCALING TO MAX REPLICAS =====
+      - alert: FraudDetectionMaxReplicas
+        expr: |
+          kube_deployment_status_replicas{namespace="fraud-detection", deployment="fraud-detection-api"} >= 6
+        for: 2m
+        labels:
+          severity: warning
+          service: fraud-detection
+          alert_type: scaling
+        annotations:
+          summary: "⚠️ Fraud Detection API масштабирован до максимума (6 экземпляров)"
+          description: |
+            🚀 Fraud Detection API достиг максимального количества реплик
+            
+            📊 Текущих реплик: {{ $value }}
+            🎯 Максимум: 6
+            ⏱️ Время работы на максимуме: {{ .ForString }}
+            
+            🔍 Проверьте метрики нагрузки для принятия решений о дальнейшем масштабировании
+      
+      # ===== HIGH MEMORY USAGE =====
+      - alert: FraudDetectionHighMemoryUsage
+        expr: |
+          (container_memory_working_set_bytes{namespace="fraud-detection", pod=~"fraud-detection-api-.*"} / container_spec_memory_limit_bytes{namespace="fraud-detection", pod=~"fraud-detection-api-.*"}) * 100 > 85
+        for: 3m
+        labels:
+          severity: warning
+          service: fraud-detection
+          alert_type: resources
+        annotations:
+          summary: "⚠️ Высокое потребление памяти в Fraud Detection API"
+          description: |
+            📈 Потребление памяти: {{ $value }}% на {{ $labels.pod }}
+            ⏱️ Длительность: {{ .ForString }}
+            
+            🔍 Проверьте утечки памяти и оптимизируйте использование ресурсов
+      
+      # ===== HIGH RESPONSE TIME =====
+      - alert: FraudDetectionHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(ml_prediction_duration_seconds_bucket{job="fraud-detection-api"}[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: fraud-detection
+          alert_type: performance
+        annotations:
+          summary: "⚠️ Высокая латентность в Fraud Detection API"
+          description: |
+            ⏱️ P95 Latency: {{ $value }}s
+            🎯 Порог: 500ms
+            ⏱️ Длительность: {{ .ForString }}
+            
+            🔧 Проверьте производительность модели и оптимизируйте inference pipeline
+      
+      # ===== HIGH ERROR RATE =====
+      - alert: FraudDetectionHighErrorRate
+        expr: |
+          (rate(ml_prediction_errors_total{job="fraud-detection-api"}[5m]) / rate(ml_predictions_total{job="fraud-detection-api"}[5m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: fraud-detection
+          alert_type: errors
+        annotations:
+          summary: "🚨 Высокий уровень ошибок в Fraud Detection API"
+          description: |
+            📊 Error Rate: {{ $value }}%
+            🎯 Порог: 5%
+            ⏱️ Длительность: {{ .ForString }}
+            
+            🔧 Немедленно проверьте логи и состояние модели
+      
+      # ===== SERVICE DOWN =====
+      - alert: FraudDetectionServiceDown
+        expr: |
+          up{job="fraud-detection-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: fraud-detection
+          alert_type: availability
+        annotations:
+          summary: "🚨 Fraud Detection API недоступен"
+          description: |
+            💥 Экземпляр {{ $labels.instance }} недоступен
+            ⏱️ Время недоступности: {{ .ForString }}
+            
+            🔧 Немедленно проверьте состояние подов и сервисов
+      
+      # ===== LOW PREDICTION RATE =====
+      - alert: FraudDetectionLowPredictionRate
+        expr: |
+          rate(ml_predictions_total{job="fraud-detection-api"}[5m]) < 1
+        for: 5m
+        labels:
+          severity: warning
+          service: fraud-detection
+          alert_type: business
+        annotations:
+          summary: "⚠️ Низкая частота предсказаний в Fraud Detection API"
+          description: |
+            📊 Предсказаний в секунду: {{ $value }}
+            🎯 Ожидается: >1 RPS
+            ⏱️ Длительность: {{ .ForString }}
+            
+            🔍 Проверьте входящий трафик и работу клиентских приложений
+    
+    # ===== KUBERNETES CLUSTER ALERTS =====
+    - name: kubernetes_alerts
+      rules:
+      
+      - alert: KubernetesNodeNotReady
+        expr: |
+          kube_node_status_condition{condition="Ready", status="true"} == 0
+        for: 3m
+        labels:
+          severity: critical
+          alert_type: infrastructure
+        annotations:
+          summary: "🚨 Kubernetes узел не готов"
+          description: "Узел {{ $labels.node }} не готов в течение {{ .ForString }}"
+      
+      - alert: KubernetesPodCrashLooping
+        expr: |
+          kube_pod_container_status_restarts_total{namespace="fraud-detection"} > 5
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: infrastructure
+        annotations:
+          summary: "⚠️ Под перезапускается слишком часто"
+          description: "Под {{ $labels.pod }} в namespace {{ $labels.namespace }} перезапускался {{ $value }} раз"

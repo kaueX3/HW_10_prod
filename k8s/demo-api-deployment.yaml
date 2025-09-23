@@ -1,0 +1,205 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection-api
+  namespace: fraud-detection
+  labels:
+    app.kubernetes.io/name: fraud-detection
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: "demo"
+spec:
+  # Начальное количество реплик для демонстрации HPA
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fraud-detection
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fraud-detection
+        app.kubernetes.io/component: api
+        app.kubernetes.io/version: "demo"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: fraud-detection-api
+        # Используем простой образ для демонстрации с имитацией ML API
+        image: nginx:alpine
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        
+        # Ресурсы для HPA
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        # Создаем простую HTML страницу с имитацией API
+        volumeMounts:
+        - name: api-content
+          mountPath: /usr/share/nginx/html
+        
+        # Security context
+        securityContext:
+          runAsNonRoot: false  # nginx требует root для запуска на порту 80
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+            add:
+              - CHOWN
+              - SETGID
+              - SETUID
+      
+      volumes:
+      - name: api-content
+        configMap:
+          name: fraud-api-demo-content
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fraud-api-demo-content
+  namespace: fraud-detection
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>🛡️ Fraud Detection API - Demo</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .header { text-align: center; color: #2c3e50; }
+            .status { padding: 15px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px; margin: 20px 0; }
+            .endpoint { background: #e9ecef; padding: 15px; margin: 10px 0; border-radius: 5px; }
+            .method { display: inline-block; background: #007bff; color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px; }
+            pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        </style>
+        <script>
+            // Простая имитация метрик для Prometheus
+            function updateMetrics() {
+                const cpu = Math.random() * 100;
+                const memory = Math.random() * 80 + 20;
+                const requests = Math.floor(Math.random() * 50) + 10;
+                
+                document.getElementById('cpu').textContent = cpu.toFixed(1);
+                document.getElementById('memory').textContent = memory.toFixed(1);
+                document.getElementById('requests').textContent = requests;
+            }
+            
+            setInterval(updateMetrics, 2000);
+        </script>
+    </head>
+    <body onload="updateMetrics()">
+        <div class="container">
+            <h1 class="header">🛡️ Fraud Detection API</h1>
+            <h2 class="header">Demo Version for HW_10</h2>
+            
+            <div class="status">
+                ✅ <strong>Status:</strong> Running in Kubernetes<br>
+                🎯 <strong>Purpose:</strong> Демонстрация автоскейлинга и мониторинга<br>
+                📊 <strong>Replicas:</strong> 4-6 (управляется HPA)
+            </div>
+            
+            <h3>📊 Real-time Metrics</h3>
+            <div class="endpoint">
+                🖥️ <strong>CPU Usage:</strong> <span id="cpu">0</span>%<br>
+                💾 <strong>Memory Usage:</strong> <span id="memory">0</span>%<br>
+                📈 <strong>Requests/sec:</strong> <span id="requests">0</span>
+            </div>
+            
+            <h3>🔗 API Endpoints</h3>
+            
+            <div class="endpoint">
+                <span class="method">GET</span> <strong>/</strong><br>
+                <em>Главная страница API (эта страница)</em>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method">GET</span> <strong>/health</strong><br>
+                <em>Health check endpoint</em>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method">GET</span> <strong>/metrics</strong><br>
+                <em>Prometheus metrics</em>
+            </div>
+            
+            <div class="endpoint">
+                <span class="method">POST</span> <strong>/predict</strong><br>
+                <em>Fraud prediction endpoint (demo)</em>
+                <pre>{
+  "transaction_id": "demo_123",
+  "amount": 150.75,
+  "merchant_category": "restaurant"
+}</pre>
+            </div>
+            
+            <h3>🎯 Цели HW_10</h3>
+            <ul>
+                <li>✅ Автоскейлинг от 4 до 6 экземпляров</li>
+                <li>✅ Мониторинг с Prometheus и Grafana</li>
+                <li>✅ Алертинг при >80% CPU</li>
+                <li>✅ Airflow для переобучения модели</li>
+                <li>✅ Kafka стресс-тестирование</li>
+            </ul>
+            
+            <h3>🔧 Для тестирования</h3>
+            <p>Используйте стресс-тест для имитации высокой нагрузки:</p>
+            <pre>python scripts/kafka_stress_test.py --api-url http://&lt;EXTERNAL_IP&gt;</pre>
+            
+            <div class="status">
+                <strong>💡 Примечание:</strong> Это демо-версия для тестирования автоскейлинга и мониторинга.
+                В production версии здесь был бы полноценный ML API для детекции мошенничества.
+            </div>
+        </div>
+    </body>
+    </html>
+  
+  health: |
+    {"status": "healthy", "service": "fraud-detection-api", "version": "demo"}
+  
+  metrics: |
+    # HELP ml_predictions_total Total ML predictions made
+    # TYPE ml_predictions_total counter
+    ml_predictions_total 1234
+    
+    # HELP ml_prediction_duration_seconds ML prediction latency
+    # TYPE ml_prediction_duration_seconds histogram
+    ml_prediction_duration_seconds_bucket{le="0.1"} 100
+    ml_prediction_duration_seconds_bucket{le="0.5"} 200
+    ml_prediction_duration_seconds_bucket{le="1.0"} 250
+    ml_prediction_duration_seconds_bucket{le="+Inf"} 260
+    ml_prediction_duration_seconds_sum 45.5
+    ml_prediction_duration_seconds_count 260

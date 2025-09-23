@@ -1,0 +1,131 @@
+# 🔒 SECURITY & SECRETS (критично для публичного репозитория)
+# Приватные ключи и токены
+*.key
+*.pem
+*_key.json
+*-key.json
+github-actions-key.json
+service-account-key.json
+
+# Kubeconfig файлы
+kubeconfig*.yaml
+kubeconfig*.yml
+*kubeconfig*
+
+# Terraform state (содержит чувствительные данные)
+terraform.tfstate*
+*.tfstate*
+.terraform/
+terraform.tfvars
+terraform.tfvars.json
+.yc_token
+
+# Cloud credentials
+.aws/
+.gcp/
+.yandex/
+*credentials*
+*auth*
+
+# Переменные окружения с секретами
+.env.local
+.env.production
+.env.staging
+.env.secrets
+.env
+
+# SSH ключи
+id_rsa*
+id_ed25519*
+ssh_host_*
+authorized_keys
+airflow_dataproc_key*
+
+# 🐍 Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 🔧 Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+time_validation_env/
+
+# 📊 Jupyter Notebook
+.ipynb_checkpoints
+
+# 🔨 IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 📋 OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 📦 Node modules (если есть фронтенд)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 🐳 Docker
+.dockerignore
+
+# 📊 Logs
+*.log
+logs/
+*.out
+
+# 🗂️ Backup directories
+backup/
+*_backup/
+backup_before_destroy/
+
+# 📈 MLflow
+mlruns/
+mlflow.db
+artifacts/
+
+# ☸️ Kubernetes
+*.kubeconfig
+
+# 🧪 Test outputs
+test_results/
+*.coverage
+htmlcov/
+
+# 📊 Artifacts evidence (содержат системную информацию)
+artifacts/evidence/cluster_status.txt
+artifacts/evidence/api_tests.txt
